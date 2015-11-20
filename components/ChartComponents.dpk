@@ -1,0 +1,61 @@
+package ChartComponents;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS OFF}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION ON}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$DEFINITIONINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES OFF}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$ENDIF IMPLICITBUILDING}
+{$DESCRIPTION 'Графики и таблицы'}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  vcl,
+  VclSmp,
+  dclOfficeXP,
+  vcldb,
+  dbrtl,
+  madBasic_,
+  madDisAsm_,
+  madExcept_,
+  alpet_common,
+  UTICommon;
+
+contains
+  FinCharts in 'Charts\FinCharts.pas',
+  Axis in 'Charts\Axis.pas',
+  ChartData in 'Charts\ChartData.pas',
+  Frames in 'Charts\Frames.pas',
+  Indicators in 'Charts\Indicators.pas',
+  DrawUtils in 'Charts\DrawUtils.pas',
+  ChartContainer in 'Charts\ChartContainer.pas',
+  FinMath in 'Charts\FinMath.pas',
+  DataSubscribe in '..\..\UTI\Common\DataSubscribe.pas',
+  IndAlgs in 'Charts\IndAlgs.pas',
+  ExStringGrid in 'ExStringGrid.pas',
+  TradeBase in '..\..\UTI\Autobot\TradeBase.pas',
+  ScriptSys in '..\..\UTI\Autobot\Systems\ScriptSys.pas',
+  SegMath in 'Charts\SegMath.pas',
+  EquityTesting in '..\..\UTI\autobot\EquityTesting.pas',
+  DataSource in '..\..\UTI\autobot\DataSource.pas';
+
+end.

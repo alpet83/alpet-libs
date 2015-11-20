@@ -1,0 +1,69 @@
+package alpet_common;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$DESCRIPTION 'Ключевые модули от Alexander Petrov'}
+{$RUNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  madBasic_,
+  madDisAsm_,
+  madExcept_,
+  vcl,
+  soaprtl;
+
+contains
+  Algs in '..\Algs.pas',
+  ArrayTypes in '..\ArrayTypes.pas',
+  BaseLib in '..\BaseLib.pas',
+  misc in '..\misc.pas',
+  ModuleMgr in '..\ModuleMgr.pas',
+  StrClasses in '..\StrClasses.pas',
+  WinHeap in '..\WinHeap.pas',
+  WThreads in '..\WThreads.pas',
+  FastSync in '..\FastSync.pas',
+  UniArray in '..\UniArray.pas',
+  MemStat in '..\MemStat.pas',
+  MD5 in '..\MD5.pas',
+  NBBuff in '..\NBBuff.pas',
+  NetApi in '..\NetApi.pas',
+  NetUtils in '..\NetUtils.pas',
+  Perf in '..\Perf.pas',
+  SerialSync in '..\SerialSync.pas',
+  SysLog in '..\SysLog.pas',
+  WSASock in '..\WSASock.pas',
+  lua5 in '..\lua5.pas',
+  Scripting in '..\Scripting.pas',
+  LUAEngine in '..\LUAEngine.pas',
+  LuaTypes in '..\LuaTypes.pas',
+  PsUtils in '..\PsUtils.pas',
+  LuaTools in '..\LuaTools.pas',
+  AccSec in '..\AccSec.pas',
+  DateTimeTools in '..\DateTimeTools.pas',
+  IPCUtils in '..\IPCUtils.pas';
+
+end.

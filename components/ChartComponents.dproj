@@ -1,0 +1,200 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{0f2a4771-38da-4b28-b684-3d6ae95c5960}</ProjectGuid>
+        <MainSource>ChartComponents.dpk</MainSource>
+        <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+        <DCC_DCCCompiler>DCC32</DCC_DCCCompiler>
+        <DCC_DependencyCheckOutputName>C:\Documents and Settings\All Users\Документы\RAD Studio\5.0\Bpl\ChartComponents.bpl</DCC_DependencyCheckOutputName>
+        <ProjectVersion>17.2</ProjectVersion>
+        <Config Condition="'$(Config)'==''">Debug</Config>
+        <FrameworkType>VCL</FrameworkType>
+        <Base>True</Base>
+        <Platform Condition="'$(Platform)'==''">Win32</Platform>
+        <TargetedPlatforms>1</TargetedPlatforms>
+        <AppType>Package</AppType>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Base)'=='true') or '$(Base_Win32)'!=''">
+        <Base_Win32>true</Base_Win32>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="('$(Platform)'=='Win64' and '$(Base)'=='true') or '$(Base_Win64)'!=''">
+        <Base_Win64>true</Base_Win64>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' or '$(Cfg_1)'!=''">
+        <Cfg_1>true</Cfg_1>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' or '$(Cfg_2)'!=''">
+        <Cfg_2>true</Cfg_2>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Cfg_2)'=='true') or '$(Cfg_2_Win32)'!=''">
+        <Cfg_2_Win32>true</Cfg_2_Win32>
+        <CfgParent>Cfg_2</CfgParent>
+        <Cfg_2>true</Cfg_2>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Base)'!=''">
+        <SanitizedProjectName>ChartComponents</SanitizedProjectName>
+        <VerInfo_AutoGenVersion>true</VerInfo_AutoGenVersion>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <DCC_UsePackage>rtl;dbrtl;$(DCC_UsePackage)</DCC_UsePackage>
+        <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <DCC_Namespace>Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;System;Xml;Data;Datasnap;Web;Soap;FMXTee.Editor;Winapi;System.Win;$(DCC_Namespace)</DCC_Namespace>
+        <VerInfo_Locale>1049</VerInfo_Locale>
+        <DCC_UnitSearchPath>P:\Projects\lib;P:\Projects\UTI\Common;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_DcuOutput>P:\Projects\lib\Build\</DCC_DcuOutput>
+        <BRCC_IncludePath>..\..\lib;..\..\lib\components;C:\RAD Studio\6.0\ObjRepos\DelphiWin32;$(BRCC_IncludePath)</BRCC_IncludePath>
+        <DCC_LongStrings>false</DCC_LongStrings>
+        <DCC_ImageBase>00400000</DCC_ImageBase>
+        <DCC_Description>Графики различного типа и назначения</DCC_Description>
+        <DCC_DependencyCheckOutputName>C:\Documents and Settings\All Users\Документы\RAD Studio\6.0\Bpl\ChartComponents.bpl</DCC_DependencyCheckOutputName>
+        <GenDll>true</GenDll>
+        <DCC_SymbolReferenceInfo>1</DCC_SymbolReferenceInfo>
+        <GenPackage>true</GenPackage>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Base_Win32)'!=''">
+        <Icon_MainIcon>ChartComponents_Icon.ico</Icon_MainIcon>
+        <DCC_Namespace>Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_UsePackage>vcl;VclSmp;vcldb;madBasic_;madDisAsm_;madExcept_;ChartComponents;alpet_common;UTICommon;$(DCC_UsePackage)</DCC_UsePackage>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Base_Win64)'!=''">
+        <Icon_MainIcon>ChartComponents_Icon.ico</Icon_MainIcon>
+        <DCC_UsePackage>vcl;VclSmp;vcldb;$(DCC_UsePackage)</DCC_UsePackage>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Cfg_1)'!=''">
+        <Version>7.0</Version>
+        <DCC_DebugInformation>0</DCC_DebugInformation>
+        <DCC_LocalDebugSymbols>False</DCC_LocalDebugSymbols>
+        <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
+        <DCC_DcuOutput>..\Build</DCC_DcuOutput>
+        <DCC_ObjOutput>..\Build</DCC_ObjOutput>
+        <DCC_HppOutput>..\Build</DCC_HppOutput>
+        <DCC_UnitSearchPath>$(DELPHI)\Lib\Debug;S:\Trade\UTI\Common;S:\Trade\lib;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_ResourcePath>$(DELPHI)\Lib\Debug;S:\Trade\UTI\Common;S:\Trade\lib;$(DCC_ResourcePath)</DCC_ResourcePath>
+        <DCC_ObjPath>$(DELPHI)\Lib\Debug;S:\Trade\UTI\Common;S:\Trade\lib;$(DCC_ObjPath)</DCC_ObjPath>
+        <DCC_IncludePath>$(DELPHI)\Lib\Debug;S:\Trade\UTI\Common;S:\Trade\lib;$(DCC_IncludePath)</DCC_IncludePath>
+        <DCC_Define>RELEASE;$(DCC_Define)</DCC_Define>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Cfg_2)'!=''">
+        <Version>7.0</Version>
+        <DCC_DcuOutput>..\Build</DCC_DcuOutput>
+        <DCC_ObjOutput>..\Build</DCC_ObjOutput>
+        <DCC_HppOutput>..\Build</DCC_HppOutput>
+        <DCC_UnitSearchPath>$(DELPHI)\Lib\Debug;P:\Projects\UTI\Build;$(DELPHI)\ObjRepos\DelphiWin32\;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_ResourcePath>$(DELPHI)\Lib\Debug;P:\Projects\UTI\Common;P:\Projects\lib;P:\Projects\UTI\Build;$(DELPHI)\ObjRepos\DelphiWin32\;$(DCC_ResourcePath)</DCC_ResourcePath>
+        <DCC_ObjPath>$(DELPHI)\Lib\Debug;P:\Projects\UTI\Common;P:\Projects\lib;P:\Projects\UTI\Build;$(DELPHI)\ObjRepos\DelphiWin32\;$(DCC_ObjPath)</DCC_ObjPath>
+        <DCC_IncludePath>$(DELPHI)\Lib\Debug;P:\Projects\UTI\Common;P:\Projects\lib;P:\Projects\UTI\Build;$(DELPHI)\ObjRepos\DelphiWin32\;$(DCC_IncludePath)</DCC_IncludePath>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
+        <DCC_UnitAlias>LuaImports=Lua5;$(DCC_UnitAlias)</DCC_UnitAlias>
+        <DCC_UnitSearchPath>P:\Projects\build\$(Platform)\$(Config);$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_DcuOutput>P:\Projects\build\$(Platform)\$(Config)</DCC_DcuOutput>
+        <DCC_MapFile>3</DCC_MapFile>
+        <DCC_Description>Графики и таблицы</DCC_Description>
+    </PropertyGroup>
+    <ItemGroup>
+        <DelphiCompile Include="$(MainSource)">
+            <MainSource>MainSource</MainSource>
+        </DelphiCompile>
+        <DCCReference Include="rtl.dcp"/>
+        <DCCReference Include="vcl.dcp"/>
+        <DCCReference Include="VclSmp.dcp"/>
+        <DCCReference Include="dclOfficeXP.dcp"/>
+        <DCCReference Include="vcldb.dcp"/>
+        <DCCReference Include="dbrtl.dcp"/>
+        <DCCReference Include="madBasic_.dcp"/>
+        <DCCReference Include="madDisAsm_.dcp"/>
+        <DCCReference Include="madExcept_.dcp"/>
+        <DCCReference Include="alpet_common.dcp"/>
+        <DCCReference Include="UTICommon.dcp"/>
+        <DCCReference Include="Charts\FinCharts.pas"/>
+        <DCCReference Include="Charts\Axis.pas"/>
+        <DCCReference Include="Charts\ChartData.pas"/>
+        <DCCReference Include="Charts\Frames.pas"/>
+        <DCCReference Include="Charts\Indicators.pas"/>
+        <DCCReference Include="Charts\DrawUtils.pas"/>
+        <DCCReference Include="Charts\ChartContainer.pas"/>
+        <DCCReference Include="Charts\FinMath.pas"/>
+        <DCCReference Include="..\..\UTI\Common\DataSubscribe.pas"/>
+        <DCCReference Include="Charts\IndAlgs.pas"/>
+        <DCCReference Include="ExStringGrid.pas"/>
+        <DCCReference Include="..\..\UTI\Autobot\TradeBase.pas"/>
+        <DCCReference Include="..\..\UTI\Autobot\Systems\ScriptSys.pas"/>
+        <DCCReference Include="Charts\SegMath.pas"/>
+        <DCCReference Include="..\..\UTI\autobot\EquityTesting.pas"/>
+        <DCCReference Include="..\..\UTI\autobot\DataSource.pas"/>
+        <BuildConfiguration Include="Debug">
+            <Key>Cfg_2</Key>
+            <CfgParent>Base</CfgParent>
+        </BuildConfiguration>
+        <BuildConfiguration Include="Base">
+            <Key>Base</Key>
+        </BuildConfiguration>
+        <BuildConfiguration Include="Release">
+            <Key>Cfg_1</Key>
+            <CfgParent>Base</CfgParent>
+        </BuildConfiguration>
+    </ItemGroup>
+    <Import Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')" Project="$(BDS)\Bin\CodeGear.Delphi.Targets"/>
+    <ProjectExtensions>
+        <Borland.Personality>Delphi.Personality.12</Borland.Personality>
+        <Borland.ProjectType>Package</Borland.ProjectType>
+        <BorlandProject>
+            <Delphi.Personality>
+                <Parameters>
+                    <Parameters Name="UseLauncher">False</Parameters>
+                    <Parameters Name="LoadAllSymbols">True</Parameters>
+                    <Parameters Name="LoadUnspecifiedSymbols">False</Parameters>
+                </Parameters>
+                <VersionInfo>
+                    <VersionInfo Name="IncludeVerInfo">True</VersionInfo>
+                    <VersionInfo Name="AutoIncBuild">False</VersionInfo>
+                    <VersionInfo Name="MajorVer">1</VersionInfo>
+                    <VersionInfo Name="MinorVer">0</VersionInfo>
+                    <VersionInfo Name="Release">0</VersionInfo>
+                    <VersionInfo Name="Build">0</VersionInfo>
+                    <VersionInfo Name="Debug">False</VersionInfo>
+                    <VersionInfo Name="PreRelease">False</VersionInfo>
+                    <VersionInfo Name="Special">False</VersionInfo>
+                    <VersionInfo Name="Private">False</VersionInfo>
+                    <VersionInfo Name="DLL">False</VersionInfo>
+                    <VersionInfo Name="Locale">1049</VersionInfo>
+                    <VersionInfo Name="CodePage">1251</VersionInfo>
+                </VersionInfo>
+                <VersionInfoKeys>
+                    <VersionInfoKeys Name="CompanyName"/>
+                    <VersionInfoKeys Name="FileDescription"/>
+                    <VersionInfoKeys Name="FileVersion">1.0.0.0</VersionInfoKeys>
+                    <VersionInfoKeys Name="InternalName"/>
+                    <VersionInfoKeys Name="LegalCopyright"/>
+                    <VersionInfoKeys Name="LegalTrademarks"/>
+                    <VersionInfoKeys Name="OriginalFilename"/>
+                    <VersionInfoKeys Name="ProductName"/>
+                    <VersionInfoKeys Name="ProductVersion">1.0.0.0</VersionInfoKeys>
+                    <VersionInfoKeys Name="Comments"/>
+                </VersionInfoKeys>
+                <Source>
+                    <Source Name="MainSource">ChartComponents.dpk</Source>
+                </Source>
+                <Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k210.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
+                </Excluded_Packages>
+            </Delphi.Personality>
+            <Platforms>
+                <Platform value="Win32">True</Platform>
+                <Platform value="Win64">False</Platform>
+            </Platforms>
+        </BorlandProject>
+        <ProjectFileVersion>12</ProjectFileVersion>
+    </ProjectExtensions>
+    <Import Condition="Exists('$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj')" Project="$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj"/>
+</Project>

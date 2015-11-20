@@ -1,0 +1,84 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{590458EB-E839-46FB-8A02-41123360F754}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="alpet_common.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="GUIEx.dproj">
+            <Dependencies>alpet_common.dproj</Dependencies>
+        </Projects>
+        <Projects Include="..\..\UTI\Common\UTICommon.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="trade_components.dproj">
+            <Dependencies>..\..\UTI\Common\UTICommon.dproj;alpet_common.dproj</Dependencies>
+        </Projects>
+        <Projects Include="ChartComponents.dproj">
+            <Dependencies>..\..\UTI\Common\UTICommon.dproj;alpet_common.dproj</Dependencies>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="alpet_common">
+        <MSBuild Projects="alpet_common.dproj"/>
+    </Target>
+    <Target Name="alpet_common:Clean">
+        <MSBuild Projects="alpet_common.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="alpet_common:Make">
+        <MSBuild Projects="alpet_common.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="GUIEx" DependsOnTargets="alpet_common">
+        <MSBuild Projects="GUIEx.dproj"/>
+    </Target>
+    <Target Name="GUIEx:Clean" DependsOnTargets="alpet_common:Clean">
+        <MSBuild Projects="GUIEx.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="GUIEx:Make" DependsOnTargets="alpet_common:Make">
+        <MSBuild Projects="GUIEx.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="UTICommon">
+        <MSBuild Projects="..\..\UTI\Common\UTICommon.dproj"/>
+    </Target>
+    <Target Name="UTICommon:Clean">
+        <MSBuild Projects="..\..\UTI\Common\UTICommon.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="UTICommon:Make">
+        <MSBuild Projects="..\..\UTI\Common\UTICommon.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="trade_components" DependsOnTargets="UTICommon;alpet_common">
+        <MSBuild Projects="trade_components.dproj"/>
+    </Target>
+    <Target Name="trade_components:Clean" DependsOnTargets="UTICommon:Clean;alpet_common:Clean">
+        <MSBuild Projects="trade_components.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="trade_components:Make" DependsOnTargets="UTICommon:Make;alpet_common:Make">
+        <MSBuild Projects="trade_components.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="ChartComponents" DependsOnTargets="UTICommon;alpet_common">
+        <MSBuild Projects="ChartComponents.dproj"/>
+    </Target>
+    <Target Name="ChartComponents:Clean" DependsOnTargets="UTICommon:Clean;alpet_common:Clean">
+        <MSBuild Projects="ChartComponents.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="ChartComponents:Make" DependsOnTargets="UTICommon:Make;alpet_common:Make">
+        <MSBuild Projects="ChartComponents.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="alpet_common;GUIEx;UTICommon;trade_components;ChartComponents"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="alpet_common:Clean;GUIEx:Clean;UTICommon:Clean;trade_components:Clean;ChartComponents:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="alpet_common:Make;GUIEx:Make;UTICommon:Make;trade_components:Make;ChartComponents:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
