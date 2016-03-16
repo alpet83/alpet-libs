@@ -107,9 +107,10 @@ begin
  Assert (dst.cbLength <= High (dst.data), 'Buffer overrun in ECDSAContext:init');
  Move (src^, dst.data, dst.cbLength);
  lua_pushboolean (L, dst.cbLength > 0);
-{$IFOPT D+}
+ {$IFNDEF NLC_GOLD}
  wprintf('[~T]. #DBG: ECDSAContext initialized field %s from $%p with %d bytes length',
                 [tag, src, dst.cbLength]);
+
 {$ENDIF}
 end;
 

@@ -60,6 +60,8 @@ const
   LUA_MASKLINE	       = (1 shl LUA_HOOKLINE);   // 4
   LUA_MASKCOUNT	       = (1 shl LUA_HOOKCOUNT);  // 8
 
+  LUA_GCCOLLECT        = 2;
+
 
 type
 

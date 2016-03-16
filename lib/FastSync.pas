@@ -42,12 +42,13 @@ type
 
     TCritSection = class (TFastSyncObject)
     private
+
      function GetLastLocker: String;
      procedure SetLastLocker(const Value: String);
     protected
-     FSect: RTL_CRITICAL_SECTION;
-     evt_unlock: THandle;
-     FLockCount: Integer;
+           FSect: RTL_CRITICAL_SECTION;
+      evt_unlock: THandle;
+      FLockCount: Integer;
      FLastLocker: array [0..SZ_LAST_LOCKER - 1] of CHAR;
      procedure                  OnLock(const ctx_msg: WideString); virtual;
     public
@@ -376,7 +377,8 @@ end;
 // Lock
 
 function TCritSection.TryLock(const ctx_msg: TSafeStr; timeOut: Integer): Boolean;
-var pt: TProfileTimer;
+var
+    pt: TProfileTimer;
     dw: Integer;
      s: String;
 begin

@@ -26,11 +26,14 @@ type
 
     PFormatSettings = ^TFormatSettings;
 
+    TPFCValue =  Int64;
+    PPFCValue = ^TPFCValue;
+
+
     TIME_DATA = packed record
      current: Int64;
      high_nv: DWORD;  // for sync exchange
     end;
-
 
    PTIME_DATA = ^TIME_DATA;
 
@@ -76,16 +79,17 @@ type
         FLastStarted: Integer;
      FEnableWarnings: Boolean;
        FAdjustedCoef: Double;
+        FUsedPFCFreq: TPFCValue;
           FCorrector: Double;
-          FFrequency: Int64;
 
 
-     function GetStarted(index: Integer): DWORD; inline;
+     function  GetStarted(index: Integer): DWORD; inline;
      procedure SetCoef(const Value: Double);
+     procedure SetPFCRatio(const Value: Double);
     protected
             FTriggers: array [1..MAX_STAMPS] of Double;
-        FTimerStarted: array [1..MAX_STAMPS] of Int64; // in PFC-stamps
-     FCPUTimerStarted: array [1..MAX_STAMPS] of  Double;
+        FTimerStarted: array [1..MAX_STAMPS] of TPFCValue; // in PFC-stamps
+     FCPUTimerStarted: array [1..MAX_STAMPS] of Double;
        FClocksStarted: array [1..MAX_STAMPS] of Double; // RDTSC
              FStarted: array [1..MAX_STAMPS] of DWORD;
 
@@ -113,8 +117,9 @@ type
      property           Coef: Double read FCoef write SetCoef;
      property           EnableWarnings: Boolean read FEnableWarnings write FEnableWarnings;
      property           IsReference: Boolean read FIsReference;
-     property           PFCRatio: Double read FPFCRatio write FPFCRatio;
+     property           PFCRatio: Double read FPFCRatio write SetPFCRatio;
      property           Started [index: Integer]: DWORD read GetStarted;
+     property           UsedPFCFreq: TPFCValue read FUsedPFCFreq;
 
      { C & D }
      constructor        Create;
@@ -126,9 +131,11 @@ type
      function           ClocksElapsed (nStamp: Integer = DEFAULT_TIMER): Double;
      function           Diff (nStamp1, nStamp2: Integer): Double;
      function           Elapsed (nStamp: Integer = DEFAULT_TIMER; bRestart: Boolean = FALSE): Double;
-     function           TimerStarted (nStamp: Integer = DEFAULT_TIMER): Int64; inline;
+     function           ElapsedFrom ( pfc_value: TPFCValue; bGlobalPFC: Boolean = FALSE ): Double;   // milliseconds result
 
-     function           GetTimeStamp: Int64; inline;
+     function           TimerStarted (nStamp: Integer = DEFAULT_TIMER): TPFCValue; inline;
+
+     function           GetTimeStamp: TPFCValue; inline;
      function           GetClocksStamp: Double;
      function           GetCPUTimeStamp: Double; inline;
      function           IsStarted (nStamp: Integer): Boolean;
@@ -272,6 +279,7 @@ type
       function          Ready: Boolean;
       function          SyncNow ( bCalibrate: Boolean ): Boolean;
       function          SyncWith ( src: TProfileTimer; idx: Integer; base: TDateTime ): Boolean;
+      procedure         TestPrecision ( dwDelayMS: DWORD );
       procedure         TestSync;
       function          Update ( const src: TVirtualTimerRecord ): Boolean;
      end;
@@ -390,15 +398,21 @@ var
         RtlQueryPerformanceCounter: function ( var ct: TLargeInteger ): LongBool; stdcall = nil;
         RtlQueryPerformanceFrequency: function  (  var freq: TLargeInteger ): LongBool; stdcall = nil;
 
-   g_pfc_value: Int64 = 0;
-   g_timer: TVirtualTimer = nil;
+      g_freq_corr: Double  = 1.0;  // глобальный коэффициент коррекции для счетчиков производительности
+       g_pfc_freq: TPFCValue = 0;  // глобальное значение частоты счетчиков производительности, с учетом поправки(!)
+      g_pfc_value: Int64 = 0;
+          g_timer: TVirtualTimer = nil;
 
 implementation /// <<<<<<<<<<<<<<<<<<<<<<============================================================================================================================================
 uses WinApi.AclAPI, WinAPI.AccCtrl, Math;
 
 var
-   slmap: TStrMap;
+
    _NtSetTimerResolution: function ( DesRes: DWORD; bSetRes: Boolean; var ActRes: DWORD ): NTSTATUS; stdcall;
+               in_create: Integer = 0;
+
+
+                   slmap: TStrMap;
 
 //q   dd: Int64;
 
@@ -1037,13 +1051,15 @@ end;
 
 constructor TProfileTimer.Create;
 begin
- PFCRatio := 1;
+ FPFCRatio := 1;
+ FUsedPFCFreq := 0;
  try
   Assert( Assigned(self), 'TProfileTimer.Create self = nil');
   UpdateCalibration ( FALSE );
   EnableWarnings := TRUE;
-  FCorrector := 0;
   Start ($1); // only one started
+  Elapsed(1);
+  FCorrector := g_pfc_value - FTimerStarted[1];
  except
   on E: Exception do
      OnExceptLog ('TProfileTimer.Create, self = ' + FormatPtr (self), E);
@@ -1069,20 +1085,27 @@ end;
 
 function   TProfileTimer.UpdateCalibration ( bForce: Boolean ): Int64;
 var
-   PVC: PLargeInteger;
-   buff: TSmallBuff;
-   cnt: Integer;
-    pr: PVirtualTimerRecord;
+     PVC: PLargeInteger;
+    buff: TSmallBuff;
+     cnt: Integer;
+      pr: PVirtualTimerRecord;
+      fv: TPFCValue;
+      cv: Double;
 begin
  cnt := 0;
- if ( not bForce ) and ( g_timer <> nil ) and ( g_timer.ActiveSlot <> nil ) and ( g_timer.ActiveSlot.pfc_coef > 0 ) then
+ result := g_pfc_freq;
+ if ( g_timer = nil ) or ( not g_timer.Ready ) or ( self = g_timer.DiffTimer ) then
+      bForce := TRUE;
+
+ if ( not bForce ) and ( g_timer.ActiveSlot <> nil ) and ( g_timer.ActiveSlot.pfc_coef > 0 ) then
     try
      pr := g_timer.ActiveSlot;
-     result := pr.pfc_freq;
-     FFrequency := result;
-     FPFCRatio := pr.pfc_corr;
-     Coef := pr.pfc_coef;
-     g_pfc_coef := FCoef;
+     // g_timer.DiffTimer;
+     FUsedPFCFreq := pr.pfc_freq;
+     result       := pr.pfc_freq;
+     FPFCRatio    := pr.pfc_corr;
+     Coef         := pr.pfc_coef;
+     g_pfc_coef   := FCoef;
      exit;
     except
      on E: Exception do
@@ -1093,42 +1116,49 @@ begin
  PVC^ := 0;
 
 
- if not Assigned(RtlQueryPerformanceFrequency) then
-    InitRoutines;
-
-
+ if not Assigned(RtlQueryPerformanceFrequency) then InitRoutines;
 
    Repeat
     RtlQueryPerformanceFrequency(PVC^);        // сколько тактов в секунду
     // 1 = TimeStamp / PV
     // C * TimeStamp = S
-    FFrequency := PVC^; // multiply adapted
-    if FFrequency  > 0 then
-       Coef := 1000.0 / FFrequency;
+    fv := Round ( PVC^ /  g_freq_corr );
+    if g_pfc_freq <> fv then
+       g_pfc_freq := fv; // multiply adapted
+    result := fv;
+    if fv = FUsedPFCFreq then break;
+    FUsedPFCFreq := fv;
+    Assert (fv > 10000, 'Invalid performance counter frequency ' + IntToStr(fv));
+    __finit;
+    cv    := fv;
+    Coef  := 1000.0 / cv;                 // initial set
     Inc (cnt);
-
    Until (Coef > 0) and (Coef < 1) or (cnt > 10);
 
- result := PVC^;
+
+end;
+
+function TProfileTimer.ElapsedFrom (pfc_value: TPFCValue; bGlobalPFC: Boolean) : Double;
+var
+   ts: TPFCValue;
+begin
+ if FUsedPFCFreq <> g_pfc_freq then
+    UpdateCalibration(FALSE);
+
+ if bGlobalPFC then
+    ts := g_pfc_value
+ else
+    ts := GetTimeStamp; // cmp ~= 3 ns
+
+ result := Max ( 0, ts - pfc_value - FCorrector );
+ result := result * AdjustedCoef; // AdjustedCoef = Coef * PFCRatio
 end;
 
 
 function TProfileTimer.Elapsed (nStamp: Integer; bRestart: Boolean) : Double;
-var
-   ts: Int64;
-
 begin
- // Assert ( self <> nil, ' self = nil ' );
-
- if nStamp < 32 then
-    ts := GetTimeStamp // cmp ~= 3 ns
- else
-    ts := g_pfc_value;
-
- result := Max ( 0, ts - FTimerStarted [nStamp] - FCorrector );
- result := result * AdjustedCoef; //
- if bRestart then
-    StartOne (nStamp);
+ result := ElapsedFrom ( FTimerStarted [nStamp], nStamp >= 32 );
+ if bRestart then StartOne (nStamp);
 end;
 
 function TProfileTimer.GetClocksStamp: Double;
@@ -1154,7 +1184,7 @@ begin
       result := 0;
 end;
 
-function TProfileTimer.GetTimeStamp: Int64;
+function TProfileTimer.GetTimeStamp: TPFCValue;
 var
    PV: PLargeInteger;
    buff: TSmallBuff;
@@ -1194,6 +1224,12 @@ procedure TProfileTimer.SetCoef(const Value: Double);
 begin
  FCoef := Value;
  FAdjustedCoef := FCoef * PFCRatio;
+end;
+
+procedure TProfileTimer.SetPFCRatio(const Value: Double);
+begin
+ FPFCRatio := Value;
+ SetCoef (FCoef);
 end;
 
 procedure TProfileTimer.SetTriggerTime(nStamp, nDelay: Integer);
@@ -1352,8 +1388,10 @@ end;
 
 function TVirtualTimer.Ready: Boolean;
 begin
- result := Assigned (self) and Assigned (FDiffTimer);
+ result := Assigned (self) and Assigned (FDiffTimer) and (in_create = 0);
 end;
+
+
 
 constructor TVirtualTimer.Create;
 const
@@ -1364,6 +1402,11 @@ var
 
 begin
  SetLastError (0);
+ if InterlockedIncrement(in_create) > 1 then
+  begin
+   InterlockedDecrement(in_create);
+   exit;
+  end;
 
  FOwnRights := FALSE;
  FMapping.Init (4096);
@@ -1409,7 +1452,8 @@ begin
 
  max_no_sync := (1800 + Random(555) ) * 1000 * DT_ONE_MSEC;
 
- if g_timer = nil then g_timer := self;
+ if g_timer = nil then
+   g_timer := self;
 
  FDiffTimer := TProfileTimer.Create;
  FDiffTimer.EnableWarnings := FALSE;
@@ -1422,7 +1466,7 @@ begin
     ZeroMemory ( SyncPort, sizeof ( TVirtualTimerData ) );
     SyncPort.data_sz := sizeof ( TVirtualTimerData );
     ActiveSlot.version := VTD_VERSION;
-    ActiveSlot.aprox_pfc := 0.9;
+    ActiveSlot.aprox_pfc := 0.8;
     ActiveSlot.Hash;
    end
  else
@@ -1431,17 +1475,19 @@ begin
  if ActiveSlot.pfc_base = 0 then
    begin
     SyncNow ( TRUE );
-    _SafeLog('VirtualTimer created and synchronized. Base time = ' + DateTimeToStr ( ActiveSlot.base ) );
+    LogMsg('VirtualTimer created and synchronized. Base time = ' + DateTimeToStr ( ActiveSlot.base ) );
    end
  else
-    _SafeLog('VirtualTimer created, but not synchronized. Probably used global, base time = ' + DateTimeToStr ( ActiveSlot.base ) );
+    LogMsg('VirtualTimer created, but not synchronized. Probably used global, base time = ' + DateTimeToStr ( ActiveSlot.base ) );
+
+ InterlockedDecrement(in_create);
+ if Addr(g_time_func) = Addr(Now) then
+    g_time_func := PreciseTime;
 
 end;
 
 destructor TVirtualTimer.Destroy;
 begin
-
-
  if FMapping.hMapping <> 0 then
    FMapping.Close
  else
@@ -1468,21 +1514,13 @@ begin
  if SyncPort = nil then exit;
 
  // если в данный момент поток грохнется, будет очень плохо!
-
-
  slot := ActiveSlot;
-
- pfcv := FDiffTimer.GetTimeStamp;
- {$IFDEF CPUX86}
- asm
-  finit
- end;
- {$ENDIF CPUX86}
+ __finit;
 
  for i := 1 to 100 do
   if slot.base = 0 then
    begin
-    _SafeLog('Trying resync virtual timer');
+    LogMsg('Trying resync virtual timer');
     SyncNow(TRUE);
    end
   else
@@ -1490,18 +1528,20 @@ begin
 
  Assert ( slot.base > 0, ClassName + '.GetTime: slot.base = ' + ftow(slot.base));
 
- diff := pfcv - slot.pfc_base;
- elps := diff * slot.pfc_coef * slot.pfc_corr * DT_ONE_MSEC;
+ // pfcv := FDiffTimer.GetTimeStamp;
+ //  diff := pfcv - slot.pfc_base;
+
+ FDiffTimer.FPFCRatio := slot.pfc_corr;
+ FDiffTimer.Coef      := slot.pfc_coef; // set FCoef + AdjustCoef
+ elps :=  FDiffTimer.ElapsedFrom (slot.pfc_base) * DT_ONE_MSEC;
+ // original calc: diff * slot.pfc_coef * slot.pfc_corr * DT_ONE_MSEC;
 
  if elps < 0 then
-    _SafeLog ( '#WARN: ' + ClassName + '.GetTime: elps = ' + ftow(elps));
+    LogMsg ( '#WARN: ' + ClassName + '.GetTime: elps = ' + ftow(elps));
 
  result := slot.base + elps;
  p_shared_vars.local_dt := result;
-
  if bSilent then exit;
-
-
  SyncPort.lock (1);
  try
   r := SyncPort.active;
@@ -1551,7 +1591,7 @@ begin
 
  TickAdjust(2);
  tmp.pfc_last := FDiffTimer.GetTimeStamp;
- tmp.base := CurrentDateTime;
+ tmp.base     := CurrentDateTime;
  if bCalibrate then
     tmp.pfc_freq := FDiffTimer.UpdateCalibration ( TRUE );
  tmp.pfc_coef := FDiffTimer.Coef;
@@ -1577,8 +1617,7 @@ begin
    Inc ( dst.syn_cnt );
 
    SwitchSlot ( i, r );
-
-   _SafeLog ('VirtualTimer sync complete');
+   LogMsg ('VirtualTimer sync complete to ' + FormatDateTime('dd.mm.yy hh:nn:ss.zzz', tmp.base));
    result := TRUE;
  finally
   SyncPort.Unlock;
@@ -1602,26 +1641,80 @@ begin
  try
    r := SyncPort.active;
    i := NextSlot (r);
-
    dst := SyncPort.CloneActive (i);
-
    // saving newest values
    dst.base     := base;
    dst.pfc_base := src.FTimerStarted [idx];
    dst.pfc_last := dst.pfc_base;
    dst.pfc_corr := src.PFCRatio;
    dst.pfc_coef := src.Coef;
-   dst.pfc_freq := src.FFrequency;
+   dst.pfc_freq := src.UsedPFCFreq;
 
    FDiffTimer.FPFCRatio := src.PFCRatio;
-   FDiffTimer.Coef := src.Coef;
-
+   FDiffTimer.Coef      := src.Coef;
    Inc ( dst.syn_cnt );
 
    result := SwitchSlot ( i, r );
  finally
   SyncPort.Unlock;
  end;
+end;
+
+function FT2Ms(ft: TFileTime): Double;
+var
+   li: LARGE_INTEGER;
+begin
+ li.LowPart := ft.dwLowDateTime;
+ li.HighPart := ft.dwHighDateTime;
+ result := li.QuadPart / 10000.0;
+end;
+
+
+
+procedure TVirtualTimer.TestPrecision(dwDelayMS: DWORD);
+var
+   ticks: Double;
+    pfct: Int64;
+    elps: Double;
+     tms: TDateTime;
+     alt: Int64;
+     fts: TFileTime;
+     fte: TFileTime;
+
+
+begin
+ SetThreadPriority(GetCurrentThread, THREAD_PRIORITY_HIGHEST);
+ FDiffTimer.PFCRatio := 1;
+ TickAdjust(2);
+ GetSystemTimeAsFileTime(fts);
+ pfct  := FDiffTimer.GetTimeStamp;
+ tms   := GetTime();
+ // GetSystemTimePreciseAsFileTime();
+ Sleep (dwDelayMS);
+ TickAdjust(2);
+ GetSystemTimeAsFileTime(fte);
+ ticks := FT2Ms(fte) - FT2Ms(fts);
+ pfct  := FDiffTimer.GetTimeStamp - pfct; // сколько тиков прошло за delay
+ tms   := GetTime - tms;
+ elps  := tms / DT_ONE_MSEC;
+ pfct  := pfct div (dwDelayMS div 1000);   // сколько предполагается частота
+ g_freq_corr := g_freq_corr * g_pfc_freq / pfct;    // подправка коэффициента
+ Windows.QueryPerformanceFrequency(alt);
+ wprintf(' TestPrecision sys.elapsed = %.2f ms, vt.elapsed = %.2f ms, coef = %.4f, pfct = %d, g_pfc_freq = %d / %d ',
+            [ticks, elps, g_freq_corr, pfct, g_pfc_freq, alt]);
+
+ SetThreadPriority(GetCurrentThread, THREAD_PRIORITY_NORMAL);
+ if Abs(g_freq_corr - 1) < 0.01 then
+    g_freq_corr := 1
+ else
+ with ActiveSlot^ do
+  begin
+   // pfc_corr := pfc_corr * g_freq_corr;
+   pfc_freq := pfct;
+   g_pfc_freq := pfct;
+  end;
+ DiffTimer.UpdateCalibration(TRUE);
+ Sleep (100);
 end;
 
 procedure TVirtualTimer.TestSync;
@@ -1655,21 +1748,51 @@ end;
 
 var
    zero_time: Integer = 0;
+   warn_disp: Double  = 5;
+    pt_enter: Integer = 0;
+
+
 
 function PreciseTime: TDateTime;
+var
+   diff: TDateTime;
+     gt: TVirtualTimer;
 begin
- if g_timer.Ready then
-   result := g_timer.GetTime (TRUE)
- else
-   result := Now;
+ gt := g_timer;
+ result := Now;
+
+ if (gt = nil) or (pt_enter > 100) then  exit;
+ Inc(pt_enter);
+
+ if gt.Ready then
+  try
+   result := gt.GetTime (TRUE);
+   diff := (result - Now) / DT_ONE_SECOND;
+   if Abs (diff) >= warn_disp then
+      begin
+       warn_disp := warn_disp + 5;
+       LogMsg ( Format('Precise time and system time have difference %.3f sec ', [diff]) );
+      end;
+   Dec(pt_enter);
+  except
+    on E: Exception do
+      begin
+       Dec(pt_enter);
+       LogMsg('#EXCEPTION: in PreciseTime ' + E.Message);
+      end;
+  end;
+
+
+
 
  if Frac(result) <= DT_ONE_MSEC then
    begin
     Inc (zero_time);
-    if zero_time < 20 then exit;
+    if zero_time < 20 then  exit;
     if zero_time >= 20 then
       begin
-       PrintError ( Format( 'Zero time (midnight) returned %d times, result = %s ', [zero_time, FormatDateTime('dd.mm.yy hh:nn:ss.zzz', result) ] ) );
+       PrintError ( Format( 'Zero time (midnight) returned %d times, result = %s ',
+                            [zero_time, FormatDateTime('dd.mm.yy hh:nn:ss.zzz', result) ] ) );
        FreeAndNil ( g_timer );
        zero_time := 0;
       end;
@@ -1678,6 +1801,7 @@ begin
    end
   else
     zero_time := 0;
+
 end;
 
 { TTimeSource }
@@ -1711,14 +1835,14 @@ begin
 
  p := @Now;
 
- if m <> 0 then
+ if (m <> 0) then
   begin
    p := GetProcAddress ( m, 'PreciseTime' );
    if p = nil then
       p := @PreciseTime;
   end;
 
- if p <> nil then
+ if (p <> nil) and (m <> Hinstance) then
     misc.g_time_func := p;
 end;
 

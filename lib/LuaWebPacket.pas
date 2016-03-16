@@ -47,8 +47,9 @@ var
 
 begin
  tmp := Soap.EncdDecd.DecodeBase64(ps);
- SetLength (result, Length(tmp));
+ SetLength (result, Length(tmp) + 1);
  Move ( tmp[0], result[0], Length(tmp));
+ result[Length(tmp)] := 0;
 end;
 
 
@@ -135,6 +136,7 @@ var
    p: PBytesBuffer;
    s: String;
 begin
+
  p := lua_objptr (L, 1, TRUE);
  s := '';
  if IsDebuggerPresent then
@@ -148,7 +150,8 @@ begin
         p.data[p.size + 1] := 1;
         p.data[p.size + 2] := 0;
         p.data[p.size + 3] := 0;
-        FreeMem (p, p.size + BB_HEADER_SIZE + BB_SUFFIX_SIZE);
+        if lua_type(L, 1) = LUA_TLUDATA then
+           FreeMem (p, p.size + BB_HEADER_SIZE + BB_SUFFIX_SIZE);
        end;
 
     except
@@ -168,7 +171,8 @@ var
    cb: Integer;
 begin
  cb := Length (b);
- pb := AllocMem ( cb + BB_HEADER_SIZE + BB_SUFFIX_SIZE );
+ // pb := AllocMem ( cb + BB_HEADER_SIZE + BB_SUFFIX_SIZE );
+ pb := lua_newuserdata (L, cb + BB_HEADER_SIZE + BB_SUFFIX_SIZE);
  if log_verbose >= 7 then
     wprintf('[~T]. #DBG: allocated buffer instance $%p ', [pb]);
  pb.Size := cb;
@@ -179,9 +183,6 @@ begin
  pb.data [cb + 3] := BYTE('B');
  Move ( b[0], pb.data, cb );
  AssignMetaIndex (L, pb, _buffer_index, nil, 'gmt_DataBuffer', 0);
- lua_getmetatable (L, -1);
- lua_setmap_c (L, '__gc', _buffer_free);
- lua_setmetatable (L, -2);
  _check_buffer(pb, '._instance()');
 end;
 
@@ -211,7 +212,11 @@ begin
   LUA_TSTRING:
    pb := lua_tolstring (L, 1, sz);
   LUA_TLUDATA, LUA_TUSERDATA:
-   pb := lua_objptr (L, 1);
+   begin
+    pb := lua_objptr (L, 1);
+    sz := lua_objlen (L, 1);
+   end;
+
  end;
  if lua_gettop(L) > 1 then
     sz := lua_tointeger (L, 2);

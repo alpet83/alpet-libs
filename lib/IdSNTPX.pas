@@ -348,7 +348,8 @@ begin
   CopyTIdLongWord(GStack.HostToNetwork(LNTPDataGram.Xmit1), LBuffer, 40); // htonl DWORD 1 = int seconds
   CopyTIdLongWord(GStack.HostToNetwork(LNTPDataGram.Xmit2), LBuffer, 44); // htonl DWORD 2 = frac part
 
-  if dbg_present then ODS('[~TP/~B]. #PERF: UDP request pending...');
+  if dbg_present then
+     ODS('[~TP/~B]. #PERF: UDP request pending...');
   SendBuffer(LBuffer);
   asm
    pause

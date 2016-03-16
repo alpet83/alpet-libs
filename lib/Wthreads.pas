@@ -286,6 +286,7 @@ type
           FTerrain: Integer;
         stop_ready: Boolean;
      logging_flags: DWORD;         // консоль для вывода
+     have_debugger: Boolean;
 
      cur_rqs: array [0..255] of CHAR;
 
@@ -544,9 +545,9 @@ procedure DbgEnterCS ( var sc: _RTL_CRITICAL_SECTION; const ctx: String );
 var
    t: TDateTime;
 begin
- t := g_time_func;
+ t := g_time_func();
  EnterCriticalSection (sc);
- t := ( g_time_func - t ) / DT_ONE_MSEC;
+ t := ( g_time_func() - t ) / DT_ONE_MSEC;
  if ( t > 10 ) and ( gTrapThread = GetCurrentThreadID ) then
     gWaitHistory := gWaitHistory + ctx + ftow (t, ':%.3f ms ');
 end;
@@ -556,9 +557,9 @@ function DbgWaitForSO ( h: THandle; dwTimeout: DWORD; const ctx: String ): DWORD
 var
    t: TDateTime;
 begin
- t := g_time_func;
+ t := g_time_func();
  result := WaitForSingleObject (h, dwTimeout);
- t := ( g_time_func - t ) / DT_ONE_MSEC;
+ t := ( g_time_func() - t ) / DT_ONE_MSEC;
  if ( t > 10 ) and ( gTrapThread = GetCurrentThreadID ) then
     gWaitHistory := gWaitHistory + ctx + ftow (t, '@%.3f ');
 
@@ -1234,8 +1235,22 @@ begin
 
    if (result = WAIT_TIMEOUT) and bWarnTimeout then
       begin
-       ODS('[~T].~C0C #WARN(WaitRequests): Timeout ~C0F' + IntToStr(timeOut) +
-           '~C0C msec, for waiting requests in thread ~C0F' + ThreadName + '~C07' );
+       try
+        try
+         if timeOut = 5300 then
+          Assert(FALSE, '#WARN(WaitRequests): Timeout ~C0F' + IntToStr(timeOut) +
+             '~C0C msec, for waiting requests in thread ~C0F' + ThreadName + '~C07')
+         else
+          ODS('[~T].~C0C #WARN(WaitRequests): Timeout ~C0F' + IntToStr(timeOut) +
+             '~C0C msec, for waiting requests in thread ~C0F' + ThreadName + '~C07');
+        except
+         on E: Exception do
+            OnExceptLog('WaitRequest.detection', E, TRUE);
+        end;
+       except
+        on E: Exception do ;
+       end;
+
        break;
       end;
 
@@ -1575,6 +1590,12 @@ var
   elps, cpu: Double;
 begin
  Stage := 99.9;
+ if (not have_debugger) and IsDebuggerPresent then
+   begin
+    have_debugger := TRUE;
+    SetThreadName (ThreadName);
+   end;
+
 
  if (not Terminated) and (ThreadStatus <> TST_STOPPING) then
         begin

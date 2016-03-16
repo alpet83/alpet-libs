@@ -18,7 +18,8 @@ const
 
 
     EC_ASSERTION  = $0EEDFADE;
- MS_VC_EXCEPTION =  $406d1388;
+ MS_VC_EXCEPTION        =  $406d1388;
+ DBG_PRINTEXCEPTION_C   =  $40010006;
 
  PMF_NO_ODS    = $001;
  PMF_OUTFILE   = $002;
@@ -296,6 +297,7 @@ function  ActiveConsole: Integer;
 procedure SelectConsole ( ls: Integer );
 
 procedure PrintError (const msg: String);
+procedure LogMsg     (const msg: String);
 procedure ProcessMsg (const cmsg: String; const smsg: String = ''; flags: DWORD = 255);
 procedure DeleteColorTags (var msg: String);
 function  RemoveColorTags (const msg: String): String; inline;
@@ -352,9 +354,12 @@ function  IfV (b: Boolean; f1, f2: Double): Double; overload; inline;
 function  IfV (b: Boolean; s1, s2: String): String; overload; inline;
 function  IfV (b: Boolean; p1, p2: Pointer): Pointer; overload;   inline;
 
+procedure AllowReadWrite(fname: String);
 function  CheckMakeDir (sDir: String): Boolean;
 
-procedure InitPaths;
+
+procedure InitPaths(bOnExit: Boolean);
+function  InitRussian (bThreadOnly: Boolean = TRUE): Boolean;
 procedure InitConsoleBuffers;
 procedure StartLogging (const sPath: String);
 procedure SetConSize (x, y, cx, cy: Integer);
@@ -556,7 +561,7 @@ threadvar
 
 
 implementation
-uses SyncObjs, MMSystem, Math, ShlWAPI, PsUtils, Registry
+uses SyncObjs, MMSystem, Math, ShlWAPI, PsUtils, Registry, ShellApi
      {$IFDEF FullDebugMode}, FastMM4 {$ENDIF}
       ,madStackTrace, madExcept {$IFDEF CPUX86} {$ENDIF};
         // StrClasses;
@@ -734,6 +739,16 @@ end;
 procedure __pause;
 asm
   pause
+end;
+
+
+procedure AllowReadWrite(fname: String);
+var
+   attr: DWORD;
+begin
+ attr := GetFileAttributes(PChar(fname));
+ if FileExists(fname) and (attr <> INVALID_FILE_ATTRIBUTES) and (attr and FILE_ATTRIBUTE_READONLY <> 0) then
+    SetFileAttributes(PChar(fname), FILE_ATTRIBUTE_NORMAL);
 end;
 
 
@@ -1131,8 +1146,7 @@ procedure SafeMove (const src; var dst; cbSize: DWORD);
 
 begin
  try
-  if IsDebuggerPresent then
-     LogMove (src, dst, cbSize);
+  // if IsDebuggerPresent then LogMove (src, dst, cbSize);
   System.Move(src, dst, cbSize);
  except
   on E: Exception do
@@ -1187,18 +1201,16 @@ begin
  fmsg := FormatDateTime ('[dd.mm.yy hh:nn:ss.zzz].', Now) + #9;
  fmsg := fmsg + Format('PID%0.4d'#9, [GetCurrentProcessID]) + s;
 
- if gLogPath = '' then InitPaths;
+ if gLogPath = '' then InitPaths(FALSE);
 
  if IsDebuggerPresent then
-    OutputDebugString (PChar(fmsg));
+    OutputDebugString (PChar(fmsg + #13#10));
 
  fname := gLogPath +'\app_init.log';
  try
    CheckMakeDir (gLogPath);
    {$I-}
    AssignFile (ftxt, fname);
-
-
    if FileExists(fname) then
       Append (ftxt)
    else
@@ -1298,9 +1310,12 @@ var
    hFile: THandle;
    fsz: LARGE_INTEGER;
 begin
+ result := 0;
+ if not FileExists (sFileName) then exit;
+
  hFile := CreateFile (PChar(sFileName), GENERIC_READ,
                                         FILE_SHARE_READ or FILE_SHARE_WRITE or FILE_SHARE_DELETE, nil, OPEN_ALWAYS, 0, 0);
- result := 0;
+
  if (hFile = 0) or (hFile = INVALID_HANDLE_VALUE) then exit;
 
  fsz.LowPart := GetFileSize (hFile, @fsz.HighPart);
@@ -1428,7 +1443,7 @@ begin
   NT_ERROR + $008: result := 'Invalid Handle';
   NT_ERROR + $017: result := 'No Memory';
   NT_ERROR + $01D: result := 'Illegal Instruction';
-  NT_ERROR + $025: result := ' Nonconttinuable Exception';
+  NT_ERROR + $025: result := 'Nonconttinuable Exception';
   NT_ERROR + $026: result := 'Invalid Disposition';
   NT_ERROR + $08C: result := 'Array Bounds Exceeded';
   NT_ERROR + $094: result := 'Integer Divide By Zero';
@@ -1436,8 +1451,9 @@ begin
   NT_ERROR + $096: result := 'Privileged Instruction';
   NT_ERROR + $0FD: result := 'Stack Overflow';
   NT_ERROR + $13A: result := 'Control C Exit';
-   EC_ASSERTION: result := 'Delphi Assertion';
-      $40000015: result := 'C/C++ Abort Exception';
+  MS_VC_EXCEPTION: result := 'SetThreadName Exception';
+     EC_ASSERTION: result := 'Delphi Assertion';
+        $40000015: result := 'C/C++ Abort Exception';
  else
     begin
      if Assigned ( RtlNtStatusToDosError ) then
@@ -1652,7 +1668,6 @@ begin
  end;
  {$ENDIF}
 
-
  {$R-}
 
  exr := nil;
@@ -1698,14 +1713,11 @@ begin
  if fctx.Eax or fctx.Ebx or fctx.Ecx or fctx.Edx or fctx.Esi or fctx.Edi <> 0 then DumpRegisters(fctx); //
  {$ENDIF}
 
- Sleep(500);
+ Sleep(50);
 
  DumpMovePtrs(nil);
 
- CopyFile ( PChar(gLogFileName), PChar(ExePath + 'crash_copy.log'), FALSE );
-
-
-
+ // CopyFile ( PChar(gLogFileName), PChar(ExePath + 'crash_copy.log'), FALSE );
  {$IFDEF CPUX86}
 
  if ctx <> nil then
@@ -1735,7 +1747,8 @@ begin
 
  {$IFDEF CPUX86}
 
- fname := Format(path + '%s-%s-%x_crash.log', [ExtractFileName(ExeFileName), FormatDateTime('yyyy.mm.dd_hh.nn.ss', Now), GetCurrentProcessID]);
+ fname := Format(path + '%s-%s-%x_exception.dump', [ExtractFileName(ExeFileName),
+                        FormatDateTime('yyyy.mm.dd_hh.nn.ss', Now), GetCurrentProcessID]);
  try
   AssignFile ( Output, fname );
   ReWrite ( Output );
@@ -1744,7 +1757,7 @@ begin
   else
      madExcept.HandleException ( etNormal, E, Ptr (fctx.Eip), bContinue and (g_except_count < 1000), cur_esp, cur_ebp, ctx, esRuntimeError, nil, 0, nil );
 
-  Sleep (2000);
+  Sleep (100);
   CloseFile ( Output );
  finally
   AssignFile ( Output, 'con');
@@ -1752,6 +1765,9 @@ begin
  end;
 
  {$ENDIF}
+ if gSoundsEnable then
+    PlaySoundFile ( 'chord.wav', FALSE, TRUE );
+
 
  if not FileExists ( fname ) then exit;
  AssignFile (ftxt, fname);
@@ -1767,10 +1783,12 @@ begin
    end;
 
   ODS('~C0F[~T]. #DBG_DUMP(madExcept.HandleException): ~C0B'#13#10 + StackUndName(ltxt) + '~C07', PMF_IMPORTANT);
-  Sleep(2000);
+  Sleep(100);
  finally
   CloseFile (ftxt);
  end;
+ DeleteFile (fname);
+
 end;
 
 
@@ -2188,9 +2206,19 @@ end; // IsQuotedStr
 
 
 function CorrectFilePath (sFileName: String): String;
-var buff: array [0..MAX_PATH] of CHAR;
+var
+   buff: array [0..MAX_PATH] of CHAR;
+    dts: String;
+    fms: TFormatSettings;
 begin
  try
+  fms := TFormatSettings.Create ( LANG_RUSSIAN or LANG_USER_DEFAULT );
+  dts := FormatDateTime ( 'yy.mm.dd - dddd', Now, fms );
+  sFileName := AnsiReplaceStr ( sFileName, '%ExePath%',  ExePath );
+  sFileName := AnsiReplaceStr ( sFileName, '$(ExePath)', ExePath );
+  sFileName := AnsiReplaceStr ( sFileName, '%DateDir%',  dts );
+  sFileName := AnsiReplaceStr ( sFileName, '$(DateDir)', dts );
+
   while ( Pos ('\\', sFileName) > 0 ) do
           sFileName := AnsiReplaceStr(sFileName, '\\', '\');
   PathCanonicalize ( buff, PChar( sFileName ) );
@@ -2401,16 +2429,22 @@ begin
  fh := 0;
 end;
 
-
-procedure LogMsgToFile ( const msg: String; ns: Integer = 0 );
 var
-   fn: String;
-    f: Text;
+   gLogFile: THandle = 0;
+
+procedure LogMsgToFile ( msg: String; ns: Integer = 0 );
+var
+    fn: String;
+
+    fh: THandle;
+    bf: AnsiString;
+    cb: Integer;
+
 
 begin
    if ( gLogFileRename [ns] <> '' ) and ( gLogFileRename [ns] <> gLogFileName ) then
       begin
-       // CloseLogFile (gLogFile);
+       CloseLogFile (gLogFile);
        MoveFile( PChar ( gLogFileName ), PChar ( gLogFileRename [ns] ) );
        gLogFileName := gLogFileRename [ns];
       end;
@@ -2419,6 +2453,28 @@ begin
    if ns > 0 then
       fn := AnsiReplaceStr (fn, '.log', '_' + IntToStr(ns) + '.log' );
 
+   if (gLogFile = 0) then
+     begin
+       SetLastError (0);
+       gLogFile := CreateFile ( PChar(fn), GENERIC_WRITE, FILE_SHARE_READ, nil, OPEN_ALWAYS, FILE_FLAG_WRITE_THROUGH or FILE_ATTRIBUTE_COMPRESSED, 0 );
+       if GetLastError = ERROR_ALREADY_EXISTS then
+          SetFilePointer (gLogFile, 0, nil, FILE_END);
+     end;
+
+   if (gLogFile = 0) then exit; // TODO: safe log error
+
+   msg := msg + #13#10;
+
+   SetLength (bf, Length(msg) + 128);
+
+
+   cb := WideCharToMultiByte (1251, 0, PChar(msg), Length(msg), PAnsiChar(bf), Length(bf), '?', nil);
+   if cb > 0 then
+      FileWrite ( gLogFile, bf[1], cb );
+
+
+
+   (*
    AssignFile (f, fn);
    {$I-}
    if FileExists (fn) then
@@ -2432,6 +2488,7 @@ begin
       CloseFile (f);
      end;
   {$I+}
+  *)
 end;
 
 
@@ -2512,6 +2569,14 @@ begin
  con_sw_last := sw_code;
 
  MakeConsole (sw_code); // попытка создания консоли, если её нет
+ if IsValidCodePage (866) then
+  begin
+   if ( GetConsoleOutputCP() <> 866 ) and ( not SetConsoleOutputCP (866) ) then
+      PrintError( 'Cannot assign code-page 866 to console, lastError = ' + err2str);
+  end
+ else
+  PrintError('System not supports code-page 866 (Cyrillic). Console CP rest ' + IntToStr(GetConsoleOutputCP));
+
 
  hWndCon := GetConsoleWindow;
 
@@ -2697,10 +2762,15 @@ begin
    exit;
   end;
 
- sDir := AnsiReplaceStr ( sDir, '%DateDir%', FormatDateTime( 'yy.mm.dd - dddd', Now ) );
+  while LastChar(sDir) = '\' do
+        Delete (sDir, Length(sDir), 1);
+
+ sDir := CorrectFilePath ( sDir );
  result := TRUE;
  if not DirectoryExists (sDir) then
   try
+
+
    result := ForceDirectories (sDir);
   except
    on E: Exception do
@@ -2808,7 +2878,7 @@ begin
  ODS ('[~T/~U/~i]. ~C0C #ERROR: '#13#10#9 + msg + '~C07', PMF_IMPORTANT);
  alert_cntr := 300;
  if gSoundsEnable then
-    PlaySoundFile ( 'chord.wav', FALSE );
+    PlaySoundFile ( 'chord.wav', FALSE, TRUE );
  if Assigned (on_err_callback) then
     on_err_callback (msg);
 end;
@@ -3518,6 +3588,14 @@ begin
  DeleteColorTags (result);
 end; // RemoveColorTags
 
+procedure LogMsg     (const msg: String);
+begin
+ if Assigned (logging_thread()) and (1 = dbgt_status) then
+    ODS (msg, PMF_SYSTIME or PMF_OUTFILE or PMF_OUTCON or PMF_NO_ODS)
+ else
+    _SafeLog(msg);
+end;
+
 
 procedure ProcessMsg;
 var
@@ -3601,7 +3679,8 @@ begin
          end;
       end;
 
- if print_flags and PMF_UNFMT = 0 then
+ imsg := msg;
+ if (print_flags and PMF_UNFMT = 0) and ( Pos('~', msg) > 0 ) then
    begin
     if print_flags and PMF_SYSTIME = 0 then
        dt := g_time_func
@@ -3609,9 +3688,8 @@ begin
        dt := Now;
 
     imsg := InfoFmt (msg, dt);
-   end
- else
-    imsg := msg;
+   end;
+
 
 
 
@@ -3641,10 +3719,39 @@ begin
  gLogStream := ls;
 end;
 
+procedure RecursiveRemove(path: String);
+var
+   sr: TSearchRec;
+begin
+ if (0 <> FindFirst (path + '*.*', faAnyFile or faDirectory, sr)) then exit;
+ Repeat
 
-procedure InitPaths;
+  if Length(sr.Name) > 2 then
+   begin
+     wprintf(' removing %s', [path + sr.Name]);
+     if sr.Attr and faDirectory <> 0 then
+        RecursiveRemove(path + sr.Name + '\')
+
+     else
+        DeleteFile(path + sr.Name);
+
+   end
+ Until (0 <> FindNext(sr));
+ RemoveDirectory( PChar(path) );
+
+end;
+
+
+procedure InitPaths (bOnExit: Boolean);
 var
    modPath, modName: String;
+              fname: String;
+               path: String;
+                err: Integer;
+                 sr: TSearchRec;
+                 op: TSHFileOpStructW;
+                  p: Integer;
+
 begin
  modName := ModuleMgr.ModuleFileName (HInstance);
  modPath := ExtractFilePath ( Trim(modName) );
@@ -3652,15 +3759,87 @@ begin
  if gLogPath = '' then
     gLogPath := modPath + '..\logs\%DateDir%\';
 
-
- gLogPath := AnsiReplaceStr ( gLogPath, '%ExePath%', ExePath );
- gLogPath := AnsiReplaceStr ( gLogPath, '%DateDir%', FormatDateTime( 'yy.mm.dd - dddd', Now ) );
  gLogPath := CorrectFilePath (gLogPath);
 
  SetConsoleTitle ( PChar( ExtractFileName (ExeFileName) + ' - logs path: ' + gLogPath));
  if not CheckMakeDir ( gLogPath ) then exit;
+ if not bOnExit then exit;
+
+ path := CorrectFilePath(gLogPath + '..\');
+ p := Pos('\logs', path);
+ if p = 0 then exit;
+ path := Copy(path, 1, p + 5);
+
+
+ if (0 <> FindFirst (path + '*.*', faDirectory, sr)) then exit;
+
+
+ Repeat
+  if (Length(sr.Name) > 10) and ( Now - sr.TimeStamp > 7.0 ) then
+   begin
+    fname := path + sr.Name;
+    if (sr.Attr and faDirectory = 0)  and
+       ( Pos('.log', fname) + Pos('.dump', fname) + Pos('.mdmp', fname) > 0 ) then
+       begin
+        wprintf('[~T].~C0C #WARN:~C07 deleted old file~C0A %s~C07', [fname]);
+        DeleteFile(fname);
+       end;
+    if (sr.Attr and faDirectory <> 0) then
+       begin
+        fname := fname + '\';
+        // RemoveDirectory(PChar(fname));
+        FillChar(op, sizeof(op), 0);
+        op.wFunc := FO_DELETE;
+        op.pFrom := PWideChar(fname);
+        op.fFlags := FOF_NO_UI;
+        err := SHFileOperation(op);
+        if err = 0 then
+           wprintf('[~T].~C0C #WARN:~C07 deleted old folder %s', [fname])
+        else
+          begin
+           wprintf('[~T].~C0C #ERROR~C07: failed delete folder %s, error = $%x', [fname, err]);
+           RecursiveRemove(fname);
+          end;
+       end;
+
+   end;
+ Until (0 <> FindNext(sr) );
+ FindClose(sr);
 
 end;
+
+var
+   sLang: String = 'ru-RU'#0#0;
+
+
+function InitRussian(bThreadOnly: Boolean): Boolean;
+var
+   temp: WideString;
+    num: Integer;
+    bsz: Integer;
+
+
+begin
+ SetLength(temp, 1024);
+ FillChar (temp[1], 2048, $FF);
+ bsz := 1024;
+ num := 5;
+ GetProcessPreferredUILanguages (MUI_LANGUAGE_NAME, @num, PChar(temp), @bsz);
+ SetStrWZ ( PChar(temp), sLang, Length(sLang) + 1);
+
+
+ result := bThreadOnly;
+ if not result then
+    result := SetProcessPreferredUILanguages (MUI_LANGUAGE_NAME, PChar(temp), @num);
+ if result then
+    result := SetThreadPreferredUILanguages (MUI_LANGUAGE_NAME, PChar(temp));
+
+ if result then
+    result := LANG_RUSSIAN = SetThreadUILanguage (LANG_RUSSIAN);
+
+ SetLength (temp, 0);
+end;
+
 
 procedure StartLogging;
 var
@@ -3673,7 +3852,7 @@ begin
 
  fn := sPath;
  gLogPath := sPath;
- InitPaths;
+ InitPaths(FALSE);
 
 
  modName := ModuleMgr.ModuleFileName (HInstance);
@@ -4246,6 +4425,8 @@ var
            st: TSystemTime;
 
 begin
+   QueryPerformanceCounter (pctrStartup);
+   dtStartup := Now;
 
    // --------------------------------------------------------
    con_mutex := CreateMutex (nil, FALSE, PChar ('misc.con_mutex'));
@@ -4269,9 +4450,6 @@ begin
       ps_creation_time := SystemTimeToDateTime (st);
      end;
 
-   QueryPerformanceCounter (pctrStartup);
-
-   dtStartup := Now;
 
    need_dt := TRUE;
 
@@ -4349,6 +4527,8 @@ var
      n: integer;
 
 begin
+   InitPaths(TRUE);
+
    if con_enabled and con_visible then
       ODS('[~T]. #DBG(CheckPoint): finalize_Misc');
    ODS_proc := nil;
@@ -4669,8 +4849,8 @@ begin
   end; // for
 
 
- sz.X := 200;
- sz.y := 900;
+ sz.X := 220;
+ sz.y := 400;
  SetConsoleScreenBufferSize ( result, sz );
  sr.Top := 0;
  sr.Left := 0;
@@ -4760,10 +4940,14 @@ initialization
  con_origin.X := Random (10) * 5 + 5;
  con_origin.Y := 10;
 
+
+
  lMDesc := RegModule ('misc', 'ModuleMgr', OnModuleRqs);
+ InitRussian (FALSE);
  InitializeModule ('misc');
 finalization
  FinalizeModule ('misc');
+ CloseLogFile (gLogFile);
  lMDesc := nil;
 end.
 

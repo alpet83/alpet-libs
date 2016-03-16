@@ -5,8 +5,7 @@ interface
 {$I stkdef.inc}
 
 uses Windows, SysUtils, Classes, Misc, LuaTypes, Math, MD5, BaseLib, PSUtils, StrUtils, DateTimeTools, IniFiles,
-     LuaImports,
-     StrClasses, ArrayTypes;
+     LuaImports, StrClasses, ArrayTypes;
 
 
 const
@@ -15,8 +14,47 @@ const
 
 
 type
-    PShort = ^SmallInt;
+
+   PShort = ^SmallInt;
+
+   T3DVector4 = packed object
+    x, y, z, l: Single;  // four-component vector
+
+    function    distance (const v: T3DVector4): Single; inline;
+    function    distance_xz (const v: T3DVector4): Single; inline;
+    function    equal ( const v: T3DVector4; tresh: Single): Boolean; inline;
+    function    format: String;
+    procedure   init_pos ( sp: String );
+    function    xz_chg ( const v: T3DVector4 ): Boolean; inline;
+
+   end;
+
+   P3DVector4 = ^T3DVector4;
+
+   PVariantField = ^TVariantField;
+
+   TVariantField = record
+    case BYTE of
+     0: (  u8: BYTE );
+     1: (  i8: ShortInt );
+     2: ( u16: WORD );
+     3: ( i16: SmallInt );
+     4: ( u32: DWORD );
+     5: ( i32: Integer );
+     6: ( f32: Single );
+     7: ( p32: Pointer );
+     8: ( asz: PAnsiChar );
+     9: ( wsz: PWideChar );
+    10: (  v4: T3DVector4 );
+    11: ( i64: Int64 );
+    12: ( u64: UInt64 );
+    13: ( f64: Double );
+    14: ( f80: Extended );
+    15: ( raw: TByteArray );
+   end;
+
     THashVector = array [0..31] of BYTE;
+
 
     TRandomHash = packed record // 4xInt64 with slow "encryption"
     private
@@ -32,7 +70,7 @@ type
      procedure                     SetNonce64(const Value: Int64);
      function                      GetDigest: TMD5Digest;
      procedure                     SetDigest(const Value: TMD5Digest);
-    procedure SetRotation(const Value: BYTE);
+     procedure                     SetRotation(const Value: BYTE);
 
     public
 
@@ -115,6 +153,9 @@ function  BinThisCall(L: lua_State): Integer; cdecl;
 function  LuaBitAND (L: lua_State): Integer; cdecl;
 function  LuaBitOR (L: lua_State): Integer; cdecl;
 
+
+function  LuaFormatDateTime (L: lua_State): Integer; cdecl;
+
 { memory functions }
 function  LuaCalcCRC (L: lua_State): Integer; cdecl;
 function  LuaFormatPtr(L: lua_State): Integer; cdecl;
@@ -139,7 +180,7 @@ function  LuaFreeData (L: lua_State): Integer; cdecl;
 function  LuaFreeObject (L: lua_State): Integer; cdecl;
 function  LuaIniFile (L: lua_State): Integer; cdecl;
 
-function  LuaStrArg (L: lua_State; n_arg: Integer = 1): String;
+function  LuaStrArg (L: lua_State; n_arg: Integer = 1; const default: String  = '' ): String;
 function  LuaTraceBack (L: lua_State; const sp: String = ''; depth: Integer = 2): String;
 procedure LuaRegFunc (L: lua_State; const func: AnsiString; fptr: lua_CFunction; const params: String = ''; disp: Boolean = FALSE);
 
@@ -249,6 +290,20 @@ end;
 function u32_random: DWORD; inline;
 begin
  result := Round ( f_random * 4294967296.0 );
+end;
+
+function  LuaFormatDateTime (L: lua_State): Integer; cdecl;
+var
+    fmt: String;
+     dt: TDateTime;
+begin
+ dt := PreciseTime ();
+ fmt := LuaStrArg (L);
+ if lua_gettop(L) > 1 then
+    dt := atof ( LuaStrArg(L, 2) ); // 64-bit double float safe get
+
+ lua_pushwstr (L, FormatDateTime (fmt, dt));
+ result := 1;
 end;
 
 
@@ -800,12 +855,14 @@ begin
  result := String (s);
 end; // lua_getstring
 
-function LuaStrArg (L: lua_State; n_arg: Integer = 1): String;
+function LuaStrArg (L: lua_State; n_arg: Integer; const default: String): String;
 begin
  result := '';
  // and ( lua_type (L, n_arg) = LUA_TSTRING )
  if ( lua_gettop (L) >= n_arg ) then
-      result := lua_topstring (L, n_arg);
+      result := lua_topstring (L, n_arg)
+ else
+      result := default;
 end;
 
 
@@ -1973,11 +2030,13 @@ end;
 
 function LuaWriteDMA (L: lua_State): Integer; cdecl;
 var
-   n, argc, addr, ofs: NativeUInt;
+   cb, n, argc, addr, ofs: NativeUInt;
    b: BYTE;
    tag, dump, hx: String;
    s: AnsiString;
-   pf: PSingle;
+   pf: Pointer;
+   pb: PByteArray absolute pf;
+ {
    pb: PByteArray absolute pf;
    ps: PAnsiChar absolute pf;
    pp: PPointer absolute pf;
@@ -1987,11 +2046,17 @@ var
    pd: PDWORD  absolute pf;
    pq: PInt64  absolute pf;
    pw: PWORD   absolute pf;
-
-
+  }
    res, rex: String;
+
+  function cast (sz: DWORD): PVariantField;
+  begin
+   result := pf;
+   cb := sz;
+  end;
+
 begin
- result := 1;
+ result := 2;
  argc := lua_gettop (L);
  addr := LuaAddr (L, 1);
  ofs :=  LuaAddr (L, 2);
@@ -2030,50 +2095,57 @@ begin
  pf := Ptr ( addr + ofs );
 
 
+ b  := lua_objlen(L, 3);
+ if argc > 4 then
+    b := lua_tointeger(L, 5);
+ cb := b;
+
  if DWORD(pf) > $10000 then
  try
+ {$IFOPT D+}
   res := '#SUCCESS:' + tag + '@' + Format('%x + %x = $%p', [addr, ofs, Pointer(pf)]);
+ {$ELSE}
+  res := '#SUCESS:';
+ {$ENDIF}
   // write value by tag
-  if (tag = 'float')   or (tag = 'single')   then pf^ := lua_tonumber(L, 3) else
-  if (tag = 'double')  or (tag = 'number')   then pn^ := lua_tonumber(L, 3) else
+  if (tag = 'float')   or (tag = 'single')   then cast(4).f32 := lua_tonumber(L, 3) else
+  if (tag = 'double')  or (tag = 'number')   then cast(8).f64  := lua_tonumber(L, 3) else
   if tag = 'ansi'  then
       begin
        s := AnsiString ( LuaStrArg (L, 3) );
-       AnsiStrings.StrPCopy ( ps, PAnsiChar (s) );
+       AnsiStrings.StrPCopy ( @ (cast (Length(s)).asz) , PAnsiChar (s) );
       end else
 
-  if (tag = 'addr')                          then pp^ := Ptr ( LuaAddr(L, 3) ) else
-  if (tag = 'byte')                          then pb[0] := BYTE    ( lua_tointeger(L, 3) ) else
-  if (tag = 'word')                          then pw^   := WORD    ( lua_tointeger(L, 3) ) else
-  if (tag = 'short')                         then ph^   := SmallInt( lua_tointeger(L, 3) ) else
-  if (tag = 'uint')    or (tag = 'dword')    then
-      pd^   := LuaDWORD (L, 3) else
-  if (tag = 'int')     or (tag = 'long')     then
-      pi^   := Integer ( lua_tointeger(L, 3) ) else
-  if (tag = 'int64')   or (tag = 'qword') then
-      pq^ := lua_toint64 (L, 3) else
-  if (tag = 'pointer') or (tag = 'ptr') then
-      pp^ := lua_topointer(L, 3) else
+  if (tag = 'addr')                          then cast(4).p32 := Ptr ( LuaAddr(L, 3) ) else
+  if (tag = 'byte')                          then cast(1).u8  := BYTE    ( lua_tointeger(L, 3) ) else
+  if (tag = 'word')                          then cast(2).u16 := WORD    ( lua_tointeger(L, 3) ) else
+  if (tag = 'short')                         then cast(2).i16 := SmallInt( lua_tointeger(L, 3) ) else
+  if (tag = 'uint')    or (tag = 'dword')    then cast(4).u32 := LuaDWORD (L, 3) else
+  if (tag = 'int')     or (tag = 'long')     then cast(4).i32 := Integer ( lua_tointeger(L, 3) ) else
+  if (tag = 'int64')   or (tag = 'qword')    then cast(8).i64 := lua_toint64 (L, 3) else
+  if (tag = 'userdata')                      then
+      Move ( lua_touserdata (L, 3)^, cast(b).raw, b) else
+  if (tag = 'object')  or (tag = 'obj')      then cast(4).p32 := lua_objptr (L, 3) else
+  if (tag = 'pointer') or (tag = 'ptr')      then cast(4).p32 := lua_topointer(L, 3) else
   if (tag = 'dump') then
      begin
       dump := LuaStrArg (L, 3);
       dump := AnsiReplaceStr (dump, ' ', ''); // remove spaces
       dump := AnsiReplaceStr (dump, '$', ''); // remove prefixes
-      n := 0;
       res := '';
       rex := '';
       dump := Trim (dump);
-
+      cb := 0;
       // цикл сгрызания текстовых токенов из строки дампа
-      while (dump <> '') and (n < 256) do
+      while (dump <> '') and (cb < 256) do
        begin
         hx := Copy (dump, 1, 2);
         Delete (dump, 1, 2);
         b := atoi ('$' + hx);  // put byte
-        pb [n] := b;                 // unsafe write
+        pb [cb] := b;                 // unsafe write
         res := res + IntToHex (b, 2) + ' ';
-        rex := rex + IntToHex (pb [n], 2) + ' ';
-        Inc (n);
+        rex := rex + IntToHex (pb [cb], 2) + ' ';
+        Inc (cb);
        end;
 
       if res = rex then
@@ -2090,6 +2162,8 @@ begin
  else
      res := '#FAILED: Unassigned ' + tag + '@' + Format('%x + %x = $%p', [addr, ofs, Pointer(pf)]);
  lua_pushwstr (L, res);
+ pb := @pb[cb];
+ lua_pushptr (L, pb);
 end;
 
 function LuaUnlockDMA (L: lua_State): Integer; cdecl;
@@ -2117,9 +2191,9 @@ begin
 
  t := lua_gettop(L);
  try
-   if Assigned (_traceback) then
+{   if Assigned (_traceback) then
       lua_pushcfunction(L, _traceback)
-   else
+   else  }
     begin
      lua_getfield (L, LUA_GLOBALSINDEX, 'debug');
      d := lua_gettop (L);
@@ -2138,7 +2212,7 @@ begin
 
  finally
   lua_settop (L, t);
-  end;
+ end;
 end; // LuaTraceBack
 
 
@@ -2598,7 +2672,9 @@ begin
  {$ENDIF}
  LuaRegFunc (L, 'bit_and',      LuaBitAND,      '(a, b)',                                                  disp);
  LuaRegFunc (L, 'bit_or',       LuaBitOR,       '(a, b)',                                                  disp);
- LuaRegFunc (L, 'CurrentTime', _current_time,   '()',                                                      disp);
+ LuaRegFunc (L, 'CurrentTime',  _current_time,  '()',                                                      disp);
+ LuaRegFunc (L, 'FormatDate',   LuaFormatDateTime,  '(fmt, [DateTime])',                                   disp);
+ LuaRegFunc (L, 'FormatTime',   LuaFormatDateTime,  '(fmt, [DateTime])',                                   disp);
  LuaRegFunc (L, 'FormatMsg',    LuaFormatMsg,   '(msg) // replace templates ~~* in string ',         disp);
  LuaRegFunc (L, 'FormatPtr',    LuaFormatPtr,   '(value) // return hex-string with $',                 disp);
  LuaRegFunc (L, 'FreeData',     LuaFreeData,    '(ptr) // release luaicp data via FreeMem',            disp);
@@ -2617,6 +2693,48 @@ begin
  lua_pushlightuserdata (L, Pointer(L));
  SetPointerMT (L, -1);
  lua_setglobal (L, 'vm_state');
+end;
+
+
+{ T3DVector4 }
+
+function T3DVector4.distance(const v: T3DVector4): Single;
+begin
+ result := Sqrt ( Sqr (v.x - x) + Sqr (v.y - y) + Sqr (v.z - z) );
+end;
+
+function T3DVector4.distance_xz( const v: T3DVector4): Single;
+begin
+ result := Sqrt ( Sqr (v.x - x) + Sqr (v.z - z) );
+end;
+
+function T3DVector4.equal( const v: T3DVector4; tresh: Single): Boolean;
+begin
+ // если все отклонения в пределах погрешности
+ result := ( Abs (v.x - x) < tresh ) and
+           ( Abs (v.y - y) < tresh ) and
+           ( Abs (v.z - z) < tresh );
+end;
+
+function T3DVector4.format: String;
+begin
+ result := SysUtils.Format('%.3f, %.3f, %.3f', [x, y, z]);
+end;
+
+procedure T3DVector4.init_pos(sp: String);
+var
+   s: String;
+begin
+ s := StrTok (sp, [',']);
+ x := atof (s);
+ s := StrTok (sp, [',']);
+ y := atof (s);
+ z := atof (sp);
+end;
+
+function T3DVector4.xz_chg(const v: T3DVector4): Boolean;
+begin
+ result := ( x <> v.x ) or ( z <> v.z );
 end;
 
 

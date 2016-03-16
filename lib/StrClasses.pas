@@ -181,8 +181,10 @@ type
      procedure          OnDetach (Sender: TObject; id_obj: String); virtual;
 
 
+     procedure          LoadSections (const sFileName: String);
      procedure          ParseIniSections (rlst: TStrings);
      procedure          ParseSection(const sect: String; rlst: TStrings);
+     function           NextSection (bErasePrev: Boolean; dest: TStrings): String;
 
      procedure          UpdateValue (const skey, sval: String);
      { sharing tools }
@@ -792,6 +794,21 @@ begin
  if Count > 0 then result := self[Count - 1];
 end;
 
+procedure TStrMap.LoadSections(const sFileName: String);
+// TODO: придумать полную загрузку секций, с содержимым
+var
+   tmp: TStrMap;
+begin
+ tmp := TStrMap.Create;
+ try
+  tmp.LoadFromFile(sFileName);
+  tmp.ParseIniSections(self);
+ finally
+  tmp.Free;
+ end;
+
+end;
+
 procedure TStrMap.Lock;
 begin
  sc_share.Lock ( ctx, dwTimeout );
@@ -883,6 +900,55 @@ begin
 end;
 
 
+
+function TStrMap.NextSection(bErasePrev: Boolean; dest: TStrings): String;
+var
+   i: Integer;
+   p: Integer;
+
+   s: String;
+begin
+ result := '';
+ if ReadIndex >= Count then exit;
+
+ for i := ReadIndex to Count - 1 do
+  begin
+   s := Strings[i];
+   if Pos ('[', s) <> 1 then continue;
+   p := Pos (']', s);
+   if p = 0 then continue; // not found
+   result := Copy (s, 2, p - 2);
+   ReadIndex := i + 1;
+   break;
+  end;
+ // копирование строк секции в результат
+ if (result <> '') and Assigned(dest) then
+ for i := ReadIndex to Count - 1 do
+  begin
+   s := Trim (Strings[i]);
+   if Pos ('[', s) = 1 then break; // найдена следующая секция
+   p := Pos(' = ', s);
+   // оптимизация некоторых ini-строк с пробелами
+   if p > 0 then
+      begin
+       System.Delete(s, p, 3);
+       System.Insert('=', s, p);
+      end;
+   dest.Add(s);
+  end;
+
+ p := ReadIndex - 2; // все до текущей секции зачистить
+ if bErasePrev and (result <> '') then
+  begin
+   // удаляется p элементов
+   Reverse;
+   for i := Count - 1 downto Count - p do
+       Delete (i);
+   Reverse;
+  end;
+
+
+end;
 
 procedure TStrMap.Unlock;
 begin
