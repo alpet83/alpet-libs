@@ -1761,9 +1761,8 @@ begin
  gt := g_timer;
  result := Now;
 
- if (gt = nil) or (pt_enter > 100) then  exit;
+ if (gt = nil) then  exit;
  Inc(pt_enter);
-
  if gt.Ready then
   try
    result := gt.GetTime (TRUE);
@@ -1781,9 +1780,6 @@ begin
        LogMsg('#EXCEPTION: in PreciseTime ' + E.Message);
       end;
   end;
-
-
-
 
  if Frac(result) <= DT_ONE_MSEC then
    begin
